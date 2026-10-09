@@ -1,0 +1,58 @@
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(
+            name: 'USERS',
+            choices: ['10', '25', '50'],
+            description: 'Number of virtual users'
+        )
+        choice(
+            name: 'RAMP_UP',
+            choices: ['10', '30', '60'],
+            description: 'Ramp-up time in seconds'
+        )
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Validate JMeter') {
+            steps {
+                sh '''
+                    java -version
+                    jmeter --version
+                    test -f "Load Tests/PerformanceTest.jmx"
+                '''
+            }
+        }
+
+        stage('Run JMeter') {
+            steps {
+                sh '''
+                    mkdir -p results
+                    jmeter -n \
+                      -t "Load Tests/PerformanceTest.jmx" \
+                      -Jthreads="$USERS" \
+                      -Jrampup="$RAMP_UP" \
+                      -l "results/results.jtl" \
+                      -j "results/jmeter.log"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts(
+                artifacts: 'results/**',
+                allowEmptyArchive: true
+            )
+        }
+    }
+}
